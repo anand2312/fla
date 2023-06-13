@@ -1,9 +1,10 @@
 <script>
 
-    let currMode = "cursor";
+    const modes = ["cursor", "state", "transition", "erase"];
+    let currMode = modes[1];
 
     /* Determines current mode of the pointer */
-    function mode(event) {
+    function modeSet(event) {
         currMode = event.target.id;
     }
 
@@ -88,26 +89,13 @@
 
 <div class="board">
     <div class="modes">
-        {#if currMode === "cursor"}
-            <div id="cursor" class="mbtn clicked" on:click={mode}>cursor</div>
-        {:else}
-            <div id="cursor" class="mbtn" on:click={mode}>cursor</div>
-        {/if}
-        {#if currMode === "state"}
-            <div id="state" class="mbtn clicked" on:click={mode}>state</div>
-        {:else}
-            <div id="state" class="mbtn" on:click={mode}>state</div>
-        {/if}
-        {#if currMode === "transition"}
-            <div id="transition" class="mbtn clicked" on:click={mode}>transition</div>
-        {:else}
-            <div id="transition" class="mbtn" on:click={mode}>transition</div>
-        {/if}
-        {#if currMode === "erase"}
-            <div id="erase" class="mbtn clicked" on:click={mode}>erase</div>
-        {:else}
-            <div id="erase" class="mbtn" on:click={mode}>erase</div>
-        {/if}
+        {#each modes as mode}
+            {#if currMode === mode}
+                <div id="{mode}" class="mbtn clicked" on:click={modeSet}>{mode}</div>
+            {:else}
+                <div id="{mode}" class="mbtn" on:click={modeSet}>{mode}</div>
+            {/if}
+        {/each}
     </div>
     <svg class="canvas" on:click={handleClick}>
         {#each circles as circ}
