@@ -10,4 +10,3 @@
 <h1>WIP</h1>
 <a href="/">Go back to main page</a><br>
 <Canvas/>
-<!-- add a <canvas/> here -->
