@@ -23,10 +23,6 @@
 
     function handleClick(event) {
 
-        if (!event.target.classList.contains("canvas")) {
-            return;
-        }
-
         switch (currMode) {
             case "cursor":
 
@@ -34,6 +30,12 @@
 
             /* Handles adding states to the canvas */
             case "state":
+
+                if (!event.target.classList.contains("canvas")) {
+                    console.log("cancelled click");
+                    return;
+                }
+
                 // Position of the mouse relative to the board
                 const circle = {
                     cx: event.clientX - event.target.getBoundingClientRect().left,
@@ -45,8 +47,22 @@
             case "transition":
 
                 break;
-
+            
+            /* Removing (for now, only) states clicked on from the board */
             case "erase":
+                if (event.target.tagName !== "circle") {
+                    return;
+                }
+                // Target circle's x and y values
+                let circX = event.target.cx.animVal.value;
+                let circY = event.target.cy.animVal.value;
+
+                for (let i = 0; i < circles.length; i++) {
+                    if (circX == circles[i].cx && circY == circles[i].cy) {
+                        circles = circles.slice(0, i).concat(circles.slice(i+1, circles.length));
+                        return;
+                    }
+                }
 
                 break;
         }
@@ -95,8 +111,7 @@ current mode is: {currMode}
 
     svg {
         width: 100%;
-        height: 50em;
-        /* position: absolute; */
+        height: 40em;
     }
 
     circle {
