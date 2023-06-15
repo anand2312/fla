@@ -8,15 +8,21 @@
         currMode = event.target.id;
     }
 
+    function getCircleIdx(xval = 0, yval = 0) {
+        for (let i = 0; i < circles.length; i++) {
+            if (Math.round(xval) == Math.round(circles[i].cx) &&
+                Math.round(yval) == Math.round(circles[i].cy)) {
+                return i;
+            }
+        }
+    }
+
     let circles = [];
     let radius = 50;
 
     function handleClick(event) {
 
         switch (currMode) {
-            case "cursor":
-
-                break;
 
             /* Handles adding states to the canvas */
             case "state":
@@ -58,14 +64,12 @@
 
                     5) Couple it with an input field for the transition
                     
-
                 */
 
                 break;
             
             /* Removing (for now, only) states clicked on from the board */
             case "erase":
-                console.log(event.target);
                 if (event.target.tagName !== "circle") {
                     return;
                 }
@@ -73,38 +77,73 @@
                 let circX = event.target.cx.animVal.value;
                 let circY = event.target.cy.animVal.value;
 
-                for (let i = 0; i < circles.length; i++) {
-                    if (Math.round(circX) == Math.round(circles[i].cx) &&
-                        Math.round(circY) == Math.round(circles[i].cy)) {
-                        circles = circles.slice(0, i).concat(circles.slice(i+1, circles.length));
-                        return;
-                    }
-                }
+                let idx = getCircleIdx(circX, circY);
+                circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 break;
         }
 
     }
+
+    let movingIdx = -1;
+
+    // Sidenote, erase might function like a brush later
+    // so it will be in the drag function
+    function drag(event) {
+
+        switch (currMode) {
+
+            /* When the cursor is moving over the svg tag and the 
+               mouse is held down on a circle, it's position is updated */
+            case "cursor":
+                
+                if (movingIdx < 0) {
+                    return;
+                }
+
+                let mouseX = event.clientX - event.target.parentNode.getBoundingClientRect().left;
+                let mouseY = event.clientY - event.target.parentNode.getBoundingClientRect().top;
+        
+                circles[movingIdx].cx = mouseX;
+                circles[movingIdx].cy = mouseY;
+
+                break;
+        }
+    }
+
+    /* Determines if mouse is clicked and which circle is to be moved */
+    function setMovement(event) {
+
+        if (event.target.tagName !== "circle") {
+            return;
+        }
+        movingIdx = -1;
+        
+        if (event.type !== "mousedown") {
+            return;
+        }
+        movingIdx = getCircleIdx(event.target.cx.animVal.value, event.target.cy.animVal.value);
+
+    }
+
 </script>
 
 <div class="board">
     <div class="modes">
         {#each modes as mode}
             {#if currMode === mode}
-                <div id="{mode}" class="mbtn clicked" on:click={modeSet}>{mode}</div>
+                <div id="{mode}" class="mbtn clicked"  on:click={modeSet}>{mode}</div>
             {:else}
                 <div id="{mode}" class="mbtn" on:click={modeSet}>{mode}</div>
             {/if}
         {/each}
     </div>
-    <svg class="canvas" on:click={handleClick}>
+    <svg class="canvas" on:mousedown={setMovement} on:mousemove={drag} on:mouseup={setMovement} on:click={handleClick}>
         {#each circles as circ}
             <circle cx={circ.cx} cy={circ.cy} r={radius}/>
         {/each}
     </svg>
 </div>
-
-current mode is: {currMode}
 
 <style>
     .board {
