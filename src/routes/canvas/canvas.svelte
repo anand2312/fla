@@ -1,21 +1,32 @@
 <script>
 
+    
     const modes = ["cursor", "state", "transition", "erase"];
     let currMode = modes[1];
-
+    
     /* Determines current mode of the pointer */
     function modeSet(event) {
         currMode = event.target.id;
     }
+    
+    const shortcutMap = new Map();
+    
+    let transitionIdx = -1;
 
+    // shortcuts mapping
+    shortcutMap.set("1", modes[0]);
+    shortcutMap.set("2", modes[1]);
+    shortcutMap.set("3", modes[2]);
+    shortcutMap.set("4", modes[3]);
 
-    function getCircleIdx(xval = 0, yval = 0) {
-        for (let i = 0; i < circles.length; i++) {
-            if (Math.round(xval) == Math.round(circles[i].cx) &&
-                Math.round(yval) == Math.round(circles[i].cy)) {
-                return i;
-            }
+    function shortcuts(event) {
+        let key = String.fromCharCode(event.keyCode);
+
+        if (key !== "3") {
+            transitionIdx = -1;
         }
+
+        currMode = shortcutMap.get(key);
     }
 
     let circles = [];
@@ -74,26 +85,45 @@
                 if (event.target.tagName !== "circle") {
                     return;
                 }
-                // Target circle's x and y values
-                let circX = event.target.cx.animVal.value;
-                let circY = event.target.cy.animVal.value;
 
-                let idx = getCircleIdx(circX, circY);
+                let idx = Number(event.target.id);
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 break;
         }
-
+    
     }
 
-    let movingIdx = -1;
+    let points = 6;
+    let highlightingCoords = [];
+    
+    function calculateRelativeCoords() {
+        
+        // x = r * cos(θ), y = r * sin(θ)
+        for (let i = 0; i < points; i++) {
 
+            let theta = i * 2 * Math.PI / points;
+            const coords = {
+                x: radius * Math.cos(theta),
+                y: radius * Math.sin(theta)
+            }
+            
+            highlightingCoords = highlightingCoords.concat(coords);
+        }
+    }
+    
+    
+    let movingIdx = -1;
+    
     // Relative location of click from the center of the circle
-    let clickX = 0, clickY = 0;
+    let clickX = 0, clickY = 0;         // Variables for cursor
+
+    // temporary variable               // Variables for transition
+    let ptRadius = 7;
 
     // Sidenote, erase might function like a brush later
     // so it will be in the drag function
-    function handleDrag(event) {
+    function handleMovement(event) {
 
         switch (currMode) {
 
@@ -112,9 +142,29 @@
                 circles[movingIdx].cy = mouseY + clickY;
 
                 break;
+            
+            case "transition":
+
+                if (event.target.tagName !== "circle") {
+                    transitionIdx = -1;
+                    return;
+                }
+
+                if (points !== highlightingCoords.length) {
+                    calculateRelativeCoords();
+                }
+                
+                if (event.target.classList.contains("attach-pt") ||
+                    (transitionIdx >= 0 && transitionIdx == Number(event.target.id))) {
+                    return;
+                }
+
+                transitionIdx = Number(event.target.id);
+
         }
     }
 
+    
     /* Determines if mouse is clicked and which circle is to be moved */
     function setMovement(event) {
 
@@ -125,13 +175,15 @@
         if (event.target.tagName !== "circle") {
             return;
         }
+
         movingIdx = -1;
         clickX = clickY = 0;
         
         if (event.type !== "mousedown") {
             return;
         }
-        movingIdx = getCircleIdx(event.target.cx.animVal.value, event.target.cy.animVal.value);
+        // movingIdx = getCircleIdx(event.target.cx.animVal.value, event.target.cy.animVal.value);
+        movingIdx = Number(event.target.id);
 
         let circleCpy = circles[movingIdx];
         circles = circles.slice(0, movingIdx).concat(circles.slice(movingIdx+1, circles.length));
@@ -140,13 +192,15 @@
 
         // circle coords - (click coords) = distance of click from center of circle
         clickX = event.target.cx.animVal.value - 
-                 (event.clientX - event.target.parentNode.getBoundingClientRect().left);
+                (event.clientX - event.target.parentNode.getBoundingClientRect().left);
         clickY = event.target.cy.animVal.value -
-                 (event.clientY - event.target.parentNode.getBoundingClientRect().top);
+                (event.clientY - event.target.parentNode.getBoundingClientRect().top);
 
     }
-
+    
 </script>
+
+<svelte:window on:keydown={shortcuts}/>
 
 <div class="board">
     <div class="modes">
@@ -158,10 +212,18 @@
             {/if}
         {/each}
     </div>
-    <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleDrag} on:mouseup={setMovement} on:click={handleClick}>
-        {#each circles as circ}
-            <circle cx={circ.cx} cy={circ.cy} r={radius}/>
+    <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={setMovement} 
+                        on:click={handleClick}>
+        {#each circles as circ, index}
+            <circle cx={circ.cx} cy={circ.cy} r={radius} />
+            <circle id={index.toString()} class="bounding" cx={circ.cx} cy={circ.cy} r={radius+ptRadius} />
         {/each}
+        {#if transitionIdx >= 0}
+            {#each highlightingCoords as coords}
+                <circle class="attach-pt" cx={circles[transitionIdx].cx + coords.x}
+                        cy={circles[transitionIdx].cy + coords.y} r={ptRadius} />
+            {/each}
+        {/if}
     </svg>
 </div>
 
@@ -198,4 +260,21 @@
         stroke-width: 5px;
         fill: rgba(248, 243, 194, 0.851);
     }
+
+    .bounding {
+        stroke: white;
+        stroke-width: 1px;
+        stroke-dasharray: 10 5;
+        fill: rgba(0, 0, 0, 0);
+    }
+
+    .attach-pt {
+        fill: rgba(0, 255, 0, 0.4);
+        stroke: none;
+    }
+
+    .attach-pt:hover {
+        fill: rgba(0, 255, 0, 1);
+    }
+
 </style>
