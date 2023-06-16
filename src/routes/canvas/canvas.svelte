@@ -8,6 +8,7 @@
         currMode = event.target.id;
     }
 
+
     function getCircleIdx(xval = 0, yval = 0) {
         for (let i = 0; i < circles.length; i++) {
             if (Math.round(xval) == Math.round(circles[i].cx) &&
@@ -87,9 +88,12 @@
 
     let movingIdx = -1;
 
+    // Relative location of click from the center of the circle
+    let clickX = 0, clickY = 0;
+
     // Sidenote, erase might function like a brush later
     // so it will be in the drag function
-    function drag(event) {
+    function handleDrag(event) {
 
         switch (currMode) {
 
@@ -104,8 +108,8 @@
                 let mouseX = event.clientX - event.target.parentNode.getBoundingClientRect().left;
                 let mouseY = event.clientY - event.target.parentNode.getBoundingClientRect().top;
         
-                circles[movingIdx].cx = mouseX;
-                circles[movingIdx].cy = mouseY;
+                circles[movingIdx].cx = mouseX + clickX;
+                circles[movingIdx].cy = mouseY + clickY;
 
                 break;
         }
@@ -114,15 +118,31 @@
     /* Determines if mouse is clicked and which circle is to be moved */
     function setMovement(event) {
 
+        if (currMode !== "cursor") {
+            return;
+        }
+
         if (event.target.tagName !== "circle") {
             return;
         }
         movingIdx = -1;
+        clickX = clickY = 0;
         
         if (event.type !== "mousedown") {
             return;
         }
         movingIdx = getCircleIdx(event.target.cx.animVal.value, event.target.cy.animVal.value);
+
+        let circleCpy = circles[movingIdx];
+        circles = circles.slice(0, movingIdx).concat(circles.slice(movingIdx+1, circles.length));
+        circles = circles.concat(circleCpy);
+        movingIdx = circles.length - 1;
+
+        // circle coords - (click coords) = distance of click from center of circle
+        clickX = event.target.cx.animVal.value - 
+                 (event.clientX - event.target.parentNode.getBoundingClientRect().left);
+        clickY = event.target.cy.animVal.value -
+                 (event.clientY - event.target.parentNode.getBoundingClientRect().top);
 
     }
 
@@ -138,7 +158,7 @@
             {/if}
         {/each}
     </div>
-    <svg class="canvas" on:mousedown={setMovement} on:mousemove={drag} on:mouseup={setMovement} on:click={handleClick}>
+    <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleDrag} on:mouseup={setMovement} on:click={handleClick}>
         {#each circles as circ}
             <circle cx={circ.cx} cy={circ.cy} r={radius}/>
         {/each}
