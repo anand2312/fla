@@ -1,8 +1,8 @@
 <script>
 
     
-    const modes = ["cursor", "state", "transition", "erase"];
-    let currMode = modes[1];
+    const modes = ["state", "transition", "erase"];
+    let currMode = modes[0];
     
     /* Determines current mode of the pointer */
     function modeSet(event) {
@@ -17,12 +17,11 @@
     shortcutMap.set("1", modes[0]);
     shortcutMap.set("2", modes[1]);
     shortcutMap.set("3", modes[2]);
-    shortcutMap.set("4", modes[3]);
 
     function shortcuts(event) {
         let key = String.fromCharCode(event.keyCode);
 
-        if (key !== "3") {
+        if (key !== "2") {
             transitionIdx = -1;
         }
 
@@ -35,21 +34,6 @@
     function handleClick(event) {
 
         switch (currMode) {
-
-            /* Handles adding states to the canvas */
-            case "state":
-
-                if (!event.target.classList.contains("canvas")) {
-                    return;
-                }
-
-                // Position of the mouse relative to the board
-                const circle = {
-                    cx: event.clientX - event.target.getBoundingClientRect().left,
-                    cy: event.clientY - event.target.getBoundingClientRect().top
-                };
-                circles = circles.concat(circle);
-                break;
 
             case "transition":
 
@@ -129,7 +113,7 @@
 
             /* When the cursor is moving over the svg tag and the 
                mouse is held down on a circle, it's position is updated */
-            case "cursor":
+            case "state":
                 
                 if (movingIdx < 0) {
                     return;
@@ -168,34 +152,47 @@
     /* Determines if mouse is clicked and which circle is to be moved */
     function setMovement(event) {
 
-        if (currMode !== "cursor") {
+        if (currMode !== "state") {
             return;
         }
 
-        if (event.target.tagName !== "circle") {
-            return;
+        switch (event.type) {
+            case "mousedown":
+
+                if (event.target.tagName !== "circle") {
+
+                    // Position of the mouse relative to the board
+                    const circle = {
+                        cx: event.clientX - event.target.getBoundingClientRect().left,
+                        cy: event.clientY - event.target.getBoundingClientRect().top
+                    };
+                    circles = circles.concat(circle);
+                    
+                    return;
+                }
+                
+                movingIdx = Number(event.target.id);
+
+                // Putting circle clicked on to the top
+                let circleCpy = circles[movingIdx];
+                circles = circles.slice(0, movingIdx).concat(circles.slice(movingIdx+1, circles.length));
+                circles = circles.concat(circleCpy);
+                movingIdx = circles.length - 1;
+
+                // circle coords - (click coords) = distance of click from center of circle
+                clickX = event.target.cx.animVal.value - 
+                        (event.clientX - event.target.parentNode.getBoundingClientRect().left);
+                clickY = event.target.cy.animVal.value -
+                        (event.clientY - event.target.parentNode.getBoundingClientRect().top);
+
+                break;
+            
+            case "mouseup":
+                movingIdx = -1;
+                clickX = clickY = 0;
+
+                break;
         }
-
-        movingIdx = -1;
-        clickX = clickY = 0;
-        
-        if (event.type !== "mousedown") {
-            return;
-        }
-        // movingIdx = getCircleIdx(event.target.cx.animVal.value, event.target.cy.animVal.value);
-        movingIdx = Number(event.target.id);
-
-        let circleCpy = circles[movingIdx];
-        circles = circles.slice(0, movingIdx).concat(circles.slice(movingIdx+1, circles.length));
-        circles = circles.concat(circleCpy);
-        movingIdx = circles.length - 1;
-
-        // circle coords - (click coords) = distance of click from center of circle
-        clickX = event.target.cx.animVal.value - 
-                (event.clientX - event.target.parentNode.getBoundingClientRect().left);
-        clickY = event.target.cy.animVal.value -
-                (event.clientY - event.target.parentNode.getBoundingClientRect().top);
-
     }
     
 </script>
@@ -206,9 +203,9 @@
     <div class="modes">
         {#each modes as mode}
             {#if currMode === mode}
-                <div id="{mode}" class="mbtn clicked"  on:click={modeSet}>{mode}</div>
+                <div id="{mode}" class="clicked"  on:click={modeSet}>{mode}</div>
             {:else}
-                <div id="{mode}" class="mbtn" on:click={modeSet}>{mode}</div>
+                <div id="{mode}" on:click={modeSet}>{mode}</div>
             {/if}
         {/each}
     </div>
