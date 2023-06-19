@@ -75,8 +75,10 @@
                 if (event.target.tagName !== "circle") {
                     return;
                 }
+                let id = event.target.id
+                let idx = Number(id.slice(6, id.length));
 
-                let idx = Number(event.target.id);
+                // let idx = Number(event.target.id);
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 break;
@@ -101,20 +103,49 @@
             highlightingCoords = highlightingCoords.concat(coords);
         }
     }
+
     
     
     let movingIdx = -1;
     
     // Relative location of click from the center of the circle
     let clickX = 0, clickY = 0;         // Variables for cursor
-
+    
     // temporary variable               // Variables for transition
     let ptRadius = 7;
-
+    
     let attached = -1;
+    
+    let tempTransition = [];
+    
+    let pathFrom = -1;
 
-    let tempTransition = []
+    let connectedTx = [];
 
+    let circleOnTop = 0;
+    
+
+    function getConnectedTransitions(circleIdx) {
+
+        for (let i = 0; i < transitions.length; i++) {
+            console.log
+            if (circleIdx === transitions[i][4]) {
+                connectedTx.push({
+                    index: i,
+                    from: 1
+                });
+            }
+            if (circleIdx === transitions[i][5]) {
+                connectedTx.push({
+                    index: i,
+                    from: 0
+                });
+            }
+        }
+
+        return connectedTx;
+    }
+    
     // Sidenote, erase might function like a brush later
     // so it will be in this function
     function handleMovement(event) {
@@ -135,6 +166,18 @@
                 circles[movingIdx].cx = mouseX + clickX;
                 circles[movingIdx].cy = mouseY + clickY;
 
+                // Making transitions move along with states
+                let coordIdx = 0;
+                for (let i = 0; i < connectedTx.length; i++) {
+                    if (connectedTx[i].from === 1) {
+                        coordIdx = 0;
+                    } else {
+                        coordIdx = 3;
+                    }
+                    transitions[connectedTx[i].index][coordIdx].x = mouseX + clickX;
+                    transitions[connectedTx[i].index][coordIdx].y = mouseY + clickY;
+                }
+
                 break;
             
             case "transition":
@@ -143,7 +186,7 @@
                     tempTransition[1] = {
                         x: event.clientX - event.target.parentNode.getBoundingClientRect().left,
                         y: event.clientY - event.target.parentNode.getBoundingClientRect().top
-                    }
+                    };
                 }
                     
                 if (event.target.tagName !== "circle") {
@@ -163,7 +206,8 @@
                     return;
                 }
 
-                transitionIdx = Number(event.target.id);
+                let id = event.target.id
+                transitionIdx = Number(id.slice(6, id.length));
 
                 break;
 
@@ -171,88 +215,100 @@
     }
 
     
-    /* Determines if mouse is clicked and which circle is to be moved */
+    /* Determines if mouse is clicked and sets appropriate variables according to the mode*/
     function setMovement(event) {
+        switch (currMode) {
+            case "state":
 
-        if (event.type === "mousedown") {
-            switch (currMode) {
-                case "state":
-                    if (event.target.tagName !== "circle") {
+                // Here we add a new state
+                if (event.target.tagName !== "circle") {
 
-                        // Position of the mouse relative to the board
-                        const circle = {
-                            cx: event.clientX - event.target.getBoundingClientRect().left,
-                            cy: event.clientY - event.target.getBoundingClientRect().top
-                        };
-                        circles = circles.concat(circle);
+                    // Position of the mouse relative to the board
+                    const circle = {
+                        cx: event.clientX - event.target.getBoundingClientRect().left,
+                        cy: event.clientY - event.target.getBoundingClientRect().top
+                    };
+                    circles = circles.concat(circle);
 
-                        return;
-                    }
+                    return;
+                }
 
-                    movingIdx = Number(event.target.id);
+                // Here we move an existing state
+                let id = event.target.id
+                movingIdx = Number(id.slice(6, id.length));
 
-                    // Putting circle clicked on to the top
-                    let circleCpy = circles[movingIdx];
-                    circles = circles.slice(0, movingIdx).concat(circles.slice(movingIdx+1, circles.length));
-                    circles = circles.concat(circleCpy);
-                    movingIdx = circles.length - 1;
+                // Putting circle clicked on to the top
+                circleOnTop = movingIdx;
 
-                    // circle coords - (click coords) = distance of click from center of circle
-                    clickX = Number(event.target.attributes.cx.value) - 
-                        (event.clientX - event.target.parentNode.getBoundingClientRect().left);
-                    clickY = Number(event.target.attributes.cy.value) -
-                        (event.clientY - event.target.parentNode.getBoundingClientRect().top);
+                // circle coords - (click coords) = distance of click from center of circle
+                clickX = Number(event.target.attributes.cx.value) - 
+                    (event.clientX - event.target.parentNode.getBoundingClientRect().left);
+                clickY = Number(event.target.attributes.cy.value) -
+                    (event.clientY - event.target.parentNode.getBoundingClientRect().top);
 
-                    break;
+                connectedTx = getConnectedTransitions(movingIdx);
+                console.log(transitions);
+                console.log(movingIdx);
+
+                break;
+            
+            case "transition":
+
+                if (!event.target.classList.contains("attach-pt")) {
+                    return;
+                }
                 
-                case "transition":
+                let attID = event.target.id;
+                let mouseX = event.clientX - event.target.parentNode.getBoundingClientRect().left;
+                let mouseY = event.clientY - event.target.parentNode.getBoundingClientRect().top;
 
-                    if (!event.target.classList.contains("attach-pt")) {
-                        return;
-                    }
+                attached = Number(attID.slice(3, attID.length));
+                tempTransition = [
+                    {x: Number(event.target.attributes.cx.value), y: Number(event.target.attributes.cy.value)},
+                    {x: mouseX, y: mouseY}
+                ];
+                let circIdx = event.target.classList[1]; 
+                pathFrom = Number(circIdx.slice(4, circIdx.length));
+
+                break;
+        }
+    }
+
+    /* Changes relevant variables when click is released according to the mode*/
+    function unsetMovement(event) {
+        switch (currMode) {
+            case "state":
+                movingIdx = -1;
+                clickX = clickY = 0;
+                connectedTx = [];
+
+                break;
+            
+            case "transition":
+                
+                attached = -1;
+
+                if (event.target.classList.contains("attach-pt")) {
+
+                    let circIdx = event.target.classList[1]; 
                     
-                    let attID = event.target.id;
-                    let mouseX = event.clientX - event.target.parentNode.getBoundingClientRect().left;
-                    let mouseY = event.clientY - event.target.parentNode.getBoundingClientRect().top;
-
-                    attached = Number(attID.slice(3, attID.length));
-                    tempTransition = [
+                    const newTransition = [
+                        {x: tempTransition[0].x, y: tempTransition[0].y},
+                        {x: 150, y: 150},
+                        {x: 150, y: 200},
                         {x: Number(event.target.attributes.cx.value), y: Number(event.target.attributes.cy.value)},
-                        {x: mouseX, y: mouseY}
+                        pathFrom,
+                        Number(circIdx.slice(4, circIdx.length))
                     ];
-
-                    break;
-            }
-        } else if (event.type === "mouseup") {
-            switch (currMode) {
-                case "state":
-                    movingIdx = -1;
-                    clickX = clickY = 0;
-
-                    break;
-                
-                case "transition":
                     
-                    attached = -1;
+                    pathFrom = -1;
+                    transitions.push(newTransition);
+                    transitions = transitions;
+                }
 
-                    if (event.target.classList.contains("attach-pt")) {
-                        
-                        console.log("before adding transition");
-                        const newTransition = [
-                            {x: tempTransition[0].x, y: tempTransition[0].y},
-                            {x: 150, y: 150},
-                            {x: 150, y: 150},
-                            {x: Number(event.target.attributes.cx.value), y: Number(event.target.attributes.cy.value)}
-                        ];
-                        
-                        transitions.push(newTransition);
-                        transitions = transitions;
-                    }
+                tempTransition = [];
 
-                    tempTransition = [];
-
-                    break;
-            }
+                break;
         }
     }
     
@@ -270,25 +326,40 @@
             {/if}
         {/each}
     </div>
-    <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={setMovement} 
+    <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={unsetMovement} 
                         on:click={handleClick}>
         {#if tempTransition.length > 0}
             <path D={"M "+tempTransition[0].x+","+tempTransition[0].y+" L "+tempTransition[1].x+","+tempTransition[1].y} />
         {/if}
+        <!-- States -->
         {#each circles as circ, index}
-            <circle cx={circ.cx} cy={circ.cy} r={radius} />
-            <circle id={index.toString()} class="bounding" cx={circ.cx} cy={circ.cy} r={radius+ptRadius} />
+            {#if index !== circleOnTop}
+                <circle cx={circ.cx} cy={circ.cy} r={radius} />
+                <circle id={"bound-"+index} class="bounding" cx={circ.cx} cy={circ.cy} r={radius+ptRadius} />
 
-            {#if index === transitionIdx} 
-                {#each highlightingCoords as coords, index}
-                    <circle class="attach-pt" id={"idx"+index} cx={circles[transitionIdx].cx + coords.x}
+                {#if index === transitionIdx} 
+                    {#each highlightingCoords as coords, idx}
+                        <circle class={"attach-pt att-"+index} id={"idx"+idx} cx={circles[transitionIdx].cx + coords.x}
+                                cy={circles[transitionIdx].cy + coords.y} r={ptRadius}/>
+                    {/each}
+                {/if}
+            {/if}
+        {/each}
+        {#if circles.length > 0}
+            <circle cx={circles[circleOnTop].cx} cy={circles[circleOnTop].cy} r={radius} />
+            <circle id={"bound-"+circleOnTop} class="bounding" cx={circles[circleOnTop].cx} cy={circles[circleOnTop].cy} r={radius+ptRadius} />
+
+            {#if circleOnTop === transitionIdx} 
+                {#each highlightingCoords as coords, idx}
+                    <circle class={"attach-pt att-"+circleOnTop} id={"idx"+idx} cx={circles[transitionIdx].cx + coords.x}
                             cy={circles[transitionIdx].cy + coords.y} r={ptRadius}/>
                 {/each}
             {/if}
-        {/each}
+        {/if}
+        <!-- Transitions -->
         {#each transitions as t, index}
             <path D={"M "+t[0].x+","+t[0].y + " C "+t[1].x+","+t[1].y+" "+t[2].x+","+t[2].y+" "+t[3].x+","+t[3].y}
-            class={"tx-"+index}/>
+                  id={"tx-"+index} from={t[4]} to={t[5]}/>
         {/each}
         {#each transitions as trans}
             {#each trans as pts}
