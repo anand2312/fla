@@ -1,6 +1,5 @@
 <svelte:head>
     <title>Canvas</title>
-    <link rel="stylesheet" href="../../../styles/canvas.css">
 </svelte:head>
 
 <script>
