@@ -13,9 +13,7 @@
     
     let transitionIdx = -1;
     let transitions = [];
-    //     [{x: 20, y: 300}, {x: 200, y: 30}, {x: 400, y: 50}, {x: 200, y: 600}]
-    // ];
-
+    
     // shortcuts mapping
     shortcutMap.set("1", modes[0]);
     shortcutMap.set("2", modes[1]);
@@ -114,28 +112,33 @@
     // temporary variable               // Variables for transition
     let ptRadius = 7;
     
+    // if Pointer is attached to attachment point
     let attached = -1;
     
+    // line to indicate new transition being dragged out
     let tempTransition = [];
     
+    // path beginning from state number
     let pathFrom = -1;
 
+    // All connected transitions of some state
     let connectedTx = [];
 
+    // circle to display on top of the rest
     let circleOnTop = 0;
     
-
+    /* Adds transitions connected to a state in the connectedTx array*/
     function getConnectedTransitions(circleIdx) {
 
         for (let i = 0; i < transitions.length; i++) {
             console.log
-            if (circleIdx === transitions[i][4]) {
+            if (circleIdx === transitions[i][4].from) {
                 connectedTx.push({
                     index: i,
                     from: 1
                 });
             }
-            if (circleIdx === transitions[i][5]) {
+            if (circleIdx === transitions[i][4].to) {
                 connectedTx.push({
                     index: i,
                     from: 0
@@ -167,15 +170,18 @@
                 circles[movingIdx].cy = mouseY + clickY;
 
                 // Making transitions move along with states
-                let coordIdx = 0;
                 for (let i = 0; i < connectedTx.length; i++) {
-                    if (connectedTx[i].from === 1) {
-                        coordIdx = 0;
+                    if (connectedTx[i].from) {
+                        transitions[connectedTx[i].index][0].x = 
+                            mouseX + clickX + highlightingCoords[transitions[connectedTx[i].index][5].from].x;
+                        transitions[connectedTx[i].index][0].y = 
+                            mouseY + clickY + highlightingCoords[transitions[connectedTx[i].index][5].from].y;
                     } else {
-                        coordIdx = 3;
+                        transitions[connectedTx[i].index][3].x = 
+                            mouseX + clickX + highlightingCoords[transitions[connectedTx[i].index][5].to].x;
+                        transitions[connectedTx[i].index][3].y = 
+                            mouseY + clickY + highlightingCoords[transitions[connectedTx[i].index][5].to].y;
                     }
-                    transitions[connectedTx[i].index][coordIdx].x = mouseX + clickX;
-                    transitions[connectedTx[i].index][coordIdx].y = mouseY + clickY;
                 }
 
                 break;
@@ -286,26 +292,33 @@
             
             case "transition":
                 
-                attached = -1;
-
                 if (event.target.classList.contains("attach-pt")) {
 
-                    let circIdx = event.target.classList[1]; 
+                    let circIdx = event.target.classList[1];
+                    let attachIdx = event.target.id;
                     
+                    /*
+                        0:   Start state atttachment point location
+                        1,2: Bezier curve handles
+                        3:   Destination state attachment point location
+                        4:   From and to state number
+                        5:   From and to attachment point index
+                    */
                     const newTransition = [
                         {x: tempTransition[0].x, y: tempTransition[0].y},
                         {x: 150, y: 150},
                         {x: 150, y: 200},
                         {x: Number(event.target.attributes.cx.value), y: Number(event.target.attributes.cy.value)},
-                        pathFrom,
-                        Number(circIdx.slice(4, circIdx.length))
+                        {from: pathFrom, to: Number(circIdx.slice(4, circIdx.length))},
+                        {from: attached, to: Number(attachIdx.slice(3, attachIdx.length))}
                     ];
                     
-                    pathFrom = -1;
                     transitions.push(newTransition);
                     transitions = transitions;
                 }
-
+                
+                pathFrom = -1;
+                attached = -1;
                 tempTransition = [];
 
                 break;
@@ -359,7 +372,7 @@
         <!-- Transitions -->
         {#each transitions as t, index}
             <path D={"M "+t[0].x+","+t[0].y + " C "+t[1].x+","+t[1].y+" "+t[2].x+","+t[2].y+" "+t[3].x+","+t[3].y}
-                  id={"tx-"+index} from={t[4]} to={t[5]}/>
+                  id={"tx-"+index}/>
         {/each}
         {#each transitions as trans}
             {#each trans as pts}
