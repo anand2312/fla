@@ -5,21 +5,26 @@
         y: number
     };
 
-    interface Connection {
-        from: number,
-        to: number
+    interface Connection<T> {
+        from: T,
+        to: T
     };
 
     interface Transition {
         bezier: Array<Coordinates>,
-        state: Connection,
-        attPt: Connection
+        state: Connection<String>,
+        attPt: Connection<number>
     };
 
     interface ConnectedTransition {
         index: number,
         from: number
-    }
+    };
+
+    interface StateProperties {
+        coords: Coordinates,
+        connTransitions: Array<ConnectedTransition>
+    };
 
     const modes: Array<string> = ["state", "transition", "erase"];
     let currMode: String = modes[0];
@@ -32,33 +37,36 @@
     const shortcutMap = new Map<String, String>();
     
     let transitionIdx: number = -1;
-    let transitions: Array<Transition> = []; 
+    let transitionName: String = "";
+    let transitions: Array<Transition> = [];
+
+    let attachedCircle: String = "";
     
     // shortcuts mapping
     shortcutMap.set("1", modes[0]);
     shortcutMap.set("2", modes[1]);
     shortcutMap.set("3", modes[2]);
 
-    function shortcuts(event: KeyboardEvent) {
+    function shortcuts(event: KeyboardEvent): void {
 
         if (event.key !== "2" && Array.from(shortcutMap.keys()).includes(event.key)) {
             transitionIdx = -1;
+
+            transitionName = "";
         }
         if (Array.from(shortcutMap.keys()).includes(event.key)) {
             currMode = shortcutMap.get(event.key)!;
         }
     }
 
-    let circles: Array<Coordinates> = [];
-
     // The name is temporary
-    let circlesNew: Array<String> = [];
+    let circles: Array<String> = [];
 
     // state name (String) => state properties
-    let states = new Map();
+    let states = new Map<String, StateProperties>();
     let radius: number = 50;
 
-    function handleClick(event: MouseEvent) {
+    function handleClick(event: MouseEvent): void {
 
         switch (currMode) {
 
@@ -68,7 +76,7 @@
 
                     The idea here is that:
 
-                    1) The state can have several "attachment points" where transition 
+                    done: 1) The state can have several "attachment points" where transition 
                     lines can connect. For now it will be limited to some constant, eg: 8,
                     like so:
 
@@ -78,10 +86,10 @@
                     
                     Later this control could be given to the user. 
 
-                    2) A choice is to be made between bezier curves, straight lines or some
+                    done: 2) A choice is to be made between bezier curves, straight lines or some
                     combination of them for the appearance of the transitions
 
-                    3) Connected Transitions must conform to movement of states
+                    done: 3) Connected Transitions must conform to movement of states
 
                     4) Implementing tools to edit transitions
 
@@ -98,10 +106,9 @@
                 if ((event.target as HTMLElement).tagName !== "circle") {
                     return;
                 }
-                let id: String = (event.target as SVGAElement).id
-                let idx: number = Number(id.slice(6, id.length));
 
-                // let idx = Number(event.target.id);
+                let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 break;
@@ -110,7 +117,7 @@
     }
 
     let points = 6;
-    let highlightingCoords: Array<Coordinates> = [];
+    let attachmentCoords: Array<Coordinates> = [];
     
     function calculateRelativeCoords() {
         
@@ -123,55 +130,28 @@
                 y: radius * Math.sin(theta - Math.PI/2)
             }
             
-            highlightingCoords = highlightingCoords.concat(coords);
+            attachmentCoords = attachmentCoords.concat(coords);
         }
     }
 
     
-    
-    let movingIdx: number = -1;
+    // State name which is being dragged
+    let currStateName: String = "";
     
     // Relative location of click from the center of the circle
-    let clickX: number = 0, clickY = 0;         // Variables for cursor
+    let clickX: number = 0, clickY: number = 0;         // Variables for cursor
     
-    // temporary variable               // Variables for transition
+    // temporary variable                               // Variables for transition
     let ptRadius: number = 7;
     
-    // if Pointer is attached to attachment point
+    // if pointer is attached to attachment point
     let attached: number = -1;
     
     // line to indicate new transition being dragged out
     let tempTransition: Array<Coordinates> = [];
-    
-    // path beginning from state number
-    let pathFrom: number = -1;
 
     // All connected transitions of some state
-    let connectedTx: Array<ConnectedTransition> = [];
-
-    // circle to display on top of the rest
-    let circleOnTop: number = 0;
-    
-    /* Adds transitions connected to a state in the connectedTx array*/
-    function getConnectedTransitions(circleIdx: number) {
-
-        for (let i = 0; i < transitions.length; i++) {
-            if (circleIdx === transitions[i].state.from) {
-                connectedTx.push({
-                    index: i,
-                    from: 1
-                });
-            }
-            if (circleIdx === transitions[i].state.to) {
-                connectedTx.push({
-                    index: i,
-                    from: 0
-                });
-            }
-        }
-
-        return connectedTx;
-    }
+    // let connectedTx: Array<ConnectedTransition> = [];
     
     // Sidenote, erase might function like a brush later
     // so it will be in this function
@@ -182,33 +162,43 @@
             /* When the cursor is moving over the svg tag and the 
                mouse is held down on a circle, it's position is updated */
             case "state":
-                
-                if (movingIdx < 0) {
+
+                if (currStateName === "") {
                     return;
                 }
 
                 let mouseX: number = event.clientX -
                     (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().left;
                 let mouseY: number = event.clientY -
-                    (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top;
-        
-                circles[movingIdx].x = mouseX + clickX;
-                circles[movingIdx].y = mouseY + clickY;
+                    (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top;                
 
                 // Making transitions move along with states
-                for (let i = 0; i < connectedTx.length; i++) {
-                    if (connectedTx[i].from) {
-                        transitions[connectedTx[i].index].bezier[0].x = 
-                            mouseX + clickX + highlightingCoords[transitions[connectedTx[i].index].attPt.from].x;
-                        transitions[connectedTx[i].index].bezier[0].y = 
-                            mouseY + clickY + highlightingCoords[transitions[connectedTx[i].index].attPt.from].y;
+
+                let connected = states.get(currStateName)!.connTransitions;
+
+                for (let i = 0; i < connected.length; i++) {
+                    if (connected[i].from) {
+                        transitions[connected[i].index].bezier[0].x = 
+                            mouseX + clickX + attachmentCoords[transitions[connected[i].index].attPt.from].x;
+                        transitions[connected[i].index].bezier[0].y = 
+                            mouseY + clickY + attachmentCoords[transitions[connected[i].index].attPt.from].y;
                     } else {
-                        transitions[connectedTx[i].index].bezier[3].x = 
-                            mouseX + clickX + highlightingCoords[transitions[connectedTx[i].index].attPt.to].x;
-                        transitions[connectedTx[i].index].bezier[3].y = 
-                            mouseY + clickY + highlightingCoords[transitions[connectedTx[i].index].attPt.to].y;
+                        transitions[connected[i].index].bezier[3].x = 
+                            mouseX + clickX + attachmentCoords[transitions[connected[i].index].attPt.to].x;
+                        transitions[connected[i].index].bezier[3].y = 
+                            mouseY + clickY + attachmentCoords[transitions[connected[i].index].attPt.to].y;
                     }
                 }
+
+                states.set(currStateName, {
+                    coords: {
+                        x: mouseX + clickX,
+                        y: mouseY + clickY
+                    },
+                    connTransitions: connected
+                });
+
+                states = states;
 
                 break;
             
@@ -226,20 +216,23 @@
                         return;
                     }
                     transitionIdx = -1;
+                    transitionName = "";
                     return;
                 }
 
-                if (points !== highlightingCoords.length) {
+                if (points !== attachmentCoords.length) {
                     calculateRelativeCoords();
                 }
                 
                 let id: String = (event.target as HTMLElement).id;
 
                 if ((event.target as HTMLElement).classList.contains("attach-pt") ||
-                    (transitionIdx >= 0 && transitionIdx == Number((event.target as SVGCircleElement).id))) {
+                    (transitionIdx >= 0 && transitionIdx == Number((event.target as SVGCircleElement).id))||
+                    (transitionName !== "" && transitionName === (event.target as SVGCircleElement).classList[1])) {
                     return;
                 }
 
+                transitionName = (event.target as SVGCircleElement).classList[1];
                 transitionIdx = Number(id.slice(6, id.length));
 
                 break;
@@ -249,7 +242,7 @@
 
     
     /* Determines if mouse is clicked and sets appropriate variables according to the mode*/
-    function setMovement(event: MouseEvent) {
+    function setMovement(event: MouseEvent): void {
         switch (currMode) {
             case "state":
                 
@@ -261,35 +254,32 @@
                         x: event.clientX - (event.target as HTMLElement).getBoundingClientRect().left,
                         y: event.clientY - (event.target as HTMLElement).getBoundingClientRect().top
                     };
-                    circles = circles.concat(circle);
 
                     // New way to address states, will expand in later commits
-                    circlesNew = circlesNew.concat("q"+circlesNew.length);
-                    states.set(circlesNew[circlesNew.length-1], {
-                        coords: {
-                            cx: event.clientX - (event.target as HTMLElement).getBoundingClientRect().left,
-                            cy: event.clientY - (event.target as HTMLElement).getBoundingClientRect().top
-                        },
-                        conn_transitions: []
+                    circles = circles.concat("q"+circles.length);
+                    states.set(circles[circles.length-1], {
+                        coords: circle,
+                        connTransitions: []
                     });
 
                     return;
                 }
 
                 // Here we move an existing state
-                let id = (event.target as HTMLElement).id
-                movingIdx = Number(id.slice(6, id.length));
+                currStateName = (event.target as SVGCircleElement).classList[1];
 
                 // Putting circle clicked on to the top
-                circleOnTop = movingIdx;
+                let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+
+                let tempCircle = circles[idx];
+                circles = circles.slice(0, idx).concat(circles.slice(idx + 1, circles.length));
+                circles = circles.concat(tempCircle);
 
                 // circle coords - (click coords) = distance of click from center of circle
                 clickX = Number((event.target as SVGCircleElement).cx.baseVal.value) - 
                     (event.clientX - (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().left);
                 clickY = Number((event.target as SVGCircleElement).cy.baseVal.value) -
                     (event.clientY - (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top);
-
-                connectedTx = getConnectedTransitions(movingIdx);
 
                 break;
             
@@ -300,6 +290,7 @@
                 }
                 
                 let attID = (event.target as SVGCircleElement).id;
+                attachedCircle = (event.target as SVGCircleElement).classList[1];
                 let mouseX = event.clientX - (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().left;
                 let mouseY = event.clientY - (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top;
 
@@ -308,8 +299,6 @@
                     {x: Number((event.target as SVGCircleElement).cx.baseVal.value), y: Number((event.target as SVGCircleElement).cy.baseVal.value)},
                     {x: mouseX, y: mouseY}
                 ];
-                let circIdx = (event.target as SVGCircleElement).classList[1]; 
-                pathFrom = Number(circIdx.slice(4, circIdx.length));
 
                 break;
         }
@@ -319,9 +308,8 @@
     function unsetMovement(event: MouseEvent): void {
         switch (currMode) {
             case "state":
-                movingIdx = -1;
                 clickX = clickY = 0;
-                connectedTx = [];
+                currStateName = "";
 
                 break;
             
@@ -329,16 +317,18 @@
                 
                 if ((event.target as HTMLElement).classList.contains("attach-pt")) {
 
-                    let circIdx = (event.target as SVGCircleElement).classList[1];
+                    let currCircle = (event.target as SVGCircleElement).classList[1];
                     let attachIdx = (event.target as SVGCircleElement).id;
+
+                    if (currCircle === attachedCircle &&
+                        Number(attachIdx.slice(3, attachIdx.length)) === attached) {
+                        attachedCircle = "";
+                        attached = -1;
+                        tempTransition = [];
+
+                        return;
+                    }
                     
-                    /*
-                        0:   Start state atttachment point location
-                        1,2: Bezier curve handles
-                        3:   Destination state attachment point location
-                        4:   From and to state number
-                        5:   From and to attachment point index
-                    */
                     const newTransition : Transition = {
                         bezier: [
                             {x: tempTransition[0].x, y: tempTransition[0].y},
@@ -346,15 +336,37 @@
                             {x: 150, y: 200},
                             {x: Number((event.target as SVGCircleElement).cx.baseVal.value), y: Number((event.target as SVGCircleElement).cy.baseVal.value)}
                         ],
-                        state: {from: pathFrom, to: Number(circIdx.slice(4, circIdx.length))},
+                        state: {from: attachedCircle, to: currCircle},
                         attPt: {from: attached, to: Number(attachIdx.slice(3, attachIdx.length))}
                     };
                     
                     transitions.push(newTransition);
                     transitions = transitions;
+
+                    let prevState: StateProperties = states.get(attachedCircle)!;
+                    prevState.connTransitions.push({
+                        index: transitions.length - 1,
+                        from: 1
+                    });
+
+                    states.set(attachedCircle, {
+                        coords: prevState.coords,
+                        connTransitions: prevState.connTransitions
+                    });
+
+                    prevState = states.get((event.target as SVGCircleElement).classList[1])!;
+                    prevState.connTransitions.push({
+                        index: transitions.length - 1,
+                        from: 0
+                    });
+
+                    states.set((event.target as SVGCircleElement).classList[1], {
+                        coords: prevState.coords,
+                        connTransitions: prevState.connTransitions
+                    });
+
                 }
-                
-                pathFrom = -1;
+                attachedCircle = "";
                 attached = -1;
                 tempTransition = [];
 
@@ -378,34 +390,23 @@
     </div>
     <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={unsetMovement} 
                         on:click={handleClick}>
+
         {#if tempTransition.length > 0}
             <path D={"M "+tempTransition[0].x+","+tempTransition[0].y+" L "+tempTransition[1].x+","+tempTransition[1].y} />
         {/if}
-        <!-- States -->
+
         {#each circles as circ, index}
-            {#if index !== circleOnTop}
-                <circle cx={circ.x} cy={circ.y} r={radius} />
-                <text text-anchor="middle" x={circ.x} y={circ.y}>q</text>
-                <circle id={"bound-"+index} class="bounding" cx={circ.x} cy={circ.y} r={radius+ptRadius} />
-                {#if index === transitionIdx} 
-                    {#each highlightingCoords as coords, idx}
-                        <circle class={"attach-pt att-"+index} id={"idx"+idx} cx={circles[transitionIdx].x + coords.x}
-                                cy={circles[transitionIdx].y + coords.y} r={ptRadius} />
-                    {/each}
-                {/if}
-            {/if}
-        {/each}
-        {#if circles.length > 0}
-            <circle cx={circles[circleOnTop].x} cy={circles[circleOnTop].y} r={radius} />
-            <text text-anchor="middle" x={circles[circleOnTop].x} y={circles[circleOnTop].y}>q</text>
-            <circle id={"bound-"+circleOnTop} class="bounding" cx={circles[circleOnTop].x} cy={circles[circleOnTop].y} r={radius+ptRadius} />
-            {#if circleOnTop === transitionIdx} 
-                {#each highlightingCoords as coords, idx}
-                    <circle class={"attach-pt att-"+circleOnTop} id={"idx"+idx} cx={circles[transitionIdx].x + coords.x}
-                            cy={circles[transitionIdx].y + coords.y} r={ptRadius}/>
+            <circle cx={states.get(circ).coords.x} cy={states.get(circ).coords.y} r={radius} />
+            <text text-anchor="middle" x={states.get(circ).coords.x} y={states.get(circ).coords.y}>{circ}</text>
+            <circle id={"bound-"+index} class={"bounding "+circ+" "+index} cx={states.get(circ).coords.x} cy={states.get(circ).coords.y} r={radius+ptRadius} />
+            {#if circ === transitionName} 
+                {#each attachmentCoords as coords, idx}
+                    <circle class={"attach-pt "+circ} id={"idx"+idx} cx={states.get(circ).coords.x + coords.x}
+                            cy={states.get(circ).coords.y + coords.y} r={ptRadius} />
                 {/each}
             {/if}
-        {/if}
+        {/each}
+
         <!-- Transitions -->
         {#each transitions as t, index}
             <path D={"M "+t.bezier[0].x+","+t.bezier[0].y + " C "+t.bezier[1].x+","+t.bezier[1].y+" "+t.bezier[2].x+","+t.bezier[2].y+" "+t.bezier[3].x+","+t.bezier[3].y}
@@ -416,6 +417,7 @@
                 <circle cx={pts.x} cy={pts.y} r={4} />
             {/each}
         {/each}
+
     </svg>
 </div>
 
