@@ -17,9 +17,17 @@
     };
 
     interface ConnectedTransition {
-        index: number,
+        name: String,
         from: number
     };
+
+    // intace ConnectedTransitionNew {
+    //     name: String,
+    //     from: number
+    // };erface ConnectedTransitionNew {
+    //     name: String,
+    //     from: number
+    // };
 
     interface StateProperties {
         coords: Coordinates,
@@ -36,9 +44,20 @@
     
     const shortcutMap = new Map<String, String>();
     
-    let transitionIdx: number = -1;
     let transitionName: String = "";
-    let transitions: Array<Transition> = [];
+    // let transitions: Array<Transition> = [];
+    
+    // Temporary name, renaming later
+    let paths: Array<String> = [];
+    // Path name => Transition details (bezier coords, to and from state/attachment pt)
+    let transitionsNew = new Map<String, Transition>();
+
+    let iterTransition: Array<Coordinates>;
+
+    // Gives new state number
+    let stateMax: number = 0;
+    // Gives new transition number
+    let transitionMax: number = 0;
 
     let attachedCircle: String = "";
     
@@ -50,8 +69,6 @@
     function shortcuts(event: KeyboardEvent): void {
 
         if (event.key !== "2" && Array.from(shortcutMap.keys()).includes(event.key)) {
-            transitionIdx = -1;
-
             transitionName = "";
         }
         if (Array.from(shortcutMap.keys()).includes(event.key)) {
@@ -59,11 +76,15 @@
         }
     }
 
-    // The name is temporary
+    // Array to store names of states in order of rendering
     let circles: Array<String> = [];
 
-    // state name (String) => state properties
+    // State Name => State Properties (coorinates and connected transitions)
     let states = new Map<String, StateProperties>();
+
+    let iterState: StateProperties;
+    
+    // Radius of each state in pixels
     let radius: number = 50;
 
     function handleClick(event: MouseEvent): void {
@@ -107,9 +128,15 @@
                     return;
                 }
 
-                let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+                // For erasing transitions on deleting states, the transition name has to be removed from the
+                // path array using linear search, and connected states' connected transitions are to be updated,
+                // again using linear search, which is making me uncomfortable
 
+                let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+                states.delete(circles[idx]);
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
+
+                console.log(states);
 
                 break;
         }
@@ -134,7 +161,6 @@
         }
     }
 
-    
     // State name which is being dragged
     let currStateName: String = "";
     
@@ -149,9 +175,6 @@
     
     // line to indicate new transition being dragged out
     let tempTransition: Array<Coordinates> = [];
-
-    // All connected transitions of some state
-    // let connectedTx: Array<ConnectedTransition> = [];
     
     // Sidenote, erase might function like a brush later
     // so it will be in this function
@@ -173,22 +196,25 @@
                     (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top;                
 
                 // Making transitions move along with states
-
                 let connected = states.get(currStateName)!.connTransitions;
 
                 for (let i = 0; i < connected.length; i++) {
                     if (connected[i].from) {
-                        transitions[connected[i].index].bezier[0].x = 
-                            mouseX + clickX + attachmentCoords[transitions[connected[i].index].attPt.from].x;
-                        transitions[connected[i].index].bezier[0].y = 
-                            mouseY + clickY + attachmentCoords[transitions[connected[i].index].attPt.from].y;
+                        transitionsNew.get(connected[i].name)!.bezier[0].x = 
+                            mouseX + clickX + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.from].x;
+                        transitionsNew.get(connected[i].name)!.bezier[0].y = 
+                            mouseY + clickY + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.from].y;
                     } else {
-                        transitions[connected[i].index].bezier[3].x = 
-                            mouseX + clickX + attachmentCoords[transitions[connected[i].index].attPt.to].x;
-                        transitions[connected[i].index].bezier[3].y = 
-                            mouseY + clickY + attachmentCoords[transitions[connected[i].index].attPt.to].y;
+                        transitionsNew.get(connected[i].name)!.bezier[3].x = 
+                            mouseX + clickX + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.to].x;
+                        transitionsNew.get(connected[i].name)!.bezier[3].y = 
+                            mouseY + clickY + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.to].y;
                     }
                 }
+
+                transitionsNew = transitionsNew;
+
+                
 
                 states.set(currStateName, {
                     coords: {
@@ -215,7 +241,6 @@
                     if ( attached >= 0) {
                         return;
                     }
-                    transitionIdx = -1;
                     transitionName = "";
                     return;
                 }
@@ -224,17 +249,12 @@
                     calculateRelativeCoords();
                 }
                 
-                let id: String = (event.target as HTMLElement).id;
-
                 if ((event.target as HTMLElement).classList.contains("attach-pt") ||
-                    (transitionIdx >= 0 && transitionIdx == Number((event.target as SVGCircleElement).id))||
                     (transitionName !== "" && transitionName === (event.target as SVGCircleElement).classList[1])) {
                     return;
                 }
 
                 transitionName = (event.target as SVGCircleElement).classList[1];
-                transitionIdx = Number(id.slice(6, id.length));
-
                 break;
 
         }
@@ -256,11 +276,15 @@
                     };
 
                     // New way to address states, will expand in later commits
-                    circles = circles.concat("q"+circles.length);
-                    states.set(circles[circles.length-1], {
+                    let newState: String = "q" + stateMax;
+
+                    circles = circles.concat(newState);
+                    states.set(newState, {
                         coords: circle,
                         connTransitions: []
                     });
+
+                    stateMax++;
 
                     return;
                 }
@@ -339,13 +363,15 @@
                         state: {from: attachedCircle, to: currCircle},
                         attPt: {from: attached, to: Number(attachIdx.slice(3, attachIdx.length))}
                     };
+
+                    let newTransitionName = "t" + transitionMax;
                     
-                    transitions.push(newTransition);
-                    transitions = transitions;
+                    paths = paths.concat(newTransitionName);
+                    transitionsNew.set(newTransitionName, newTransition);
 
                     let prevState: StateProperties = states.get(attachedCircle)!;
                     prevState.connTransitions.push({
-                        index: transitions.length - 1,
+                        name: newTransitionName,
                         from: 1
                     });
 
@@ -356,7 +382,7 @@
 
                     prevState = states.get((event.target as SVGCircleElement).classList[1])!;
                     prevState.connTransitions.push({
-                        index: transitions.length - 1,
+                        name: newTransitionName,
                         from: 0
                     });
 
@@ -364,6 +390,10 @@
                         coords: prevState.coords,
                         connTransitions: prevState.connTransitions
                     });
+
+                    transitionMax++;
+
+                    console.log(states);
 
                 }
                 attachedCircle = "";
@@ -396,28 +426,29 @@
         {/if}
 
         {#each circles as circ, index}
-            <circle cx={states.get(circ).coords.x} cy={states.get(circ).coords.y} r={radius} />
-            <text text-anchor="middle" x={states.get(circ).coords.x} y={states.get(circ).coords.y}>{circ}</text>
-            <circle id={"bound-"+index} class={"bounding "+circ+" "+index} cx={states.get(circ).coords.x} cy={states.get(circ).coords.y} r={radius+ptRadius} />
+            {@const iterState = states.get(circ).coords}
+            <circle cx={iterState.x} cy={iterState.y} r={radius} />
+            <text text-anchor="middle" x={iterState.x} y={iterState.y}>{circ}</text>
+            <circle id={"bound-"+index} class={"bounding "+circ+" "+index} cx={iterState.x} cy={iterState.y} r={radius+ptRadius} />
             {#if circ === transitionName} 
                 {#each attachmentCoords as coords, idx}
-                    <circle class={"attach-pt "+circ} id={"idx"+idx} cx={states.get(circ).coords.x + coords.x}
-                            cy={states.get(circ).coords.y + coords.y} r={ptRadius} />
+                    <circle class={"attach-pt "+circ} id={"idx"+idx} cx={iterState.x + coords.x}
+                            cy={iterState.y + coords.y} r={ptRadius} />
                 {/each}
             {/if}
         {/each}
 
-        <!-- Transitions -->
-        {#each transitions as t, index}
-            <path D={"M "+t.bezier[0].x+","+t.bezier[0].y + " C "+t.bezier[1].x+","+t.bezier[1].y+" "+t.bezier[2].x+","+t.bezier[2].y+" "+t.bezier[3].x+","+t.bezier[3].y}
-                  id={"tx-"+index}/>
+        {#each paths as p, index}
+            <path D={"M "+transitionsNew.get(p).bezier[0].x+","+transitionsNew.get(p).bezier[0].y + " C "+transitionsNew.get(p).bezier[1].x+","+transitionsNew.get(p).bezier[1].y+" "+transitionsNew.get(p).bezier[2].x+","+transitionsNew.get(p).bezier[2].y+" "+transitionsNew.get(p).bezier[3].x+","+transitionsNew.get(p).bezier[3].y}
+                  id={"t"+index} class="transition"/>
         {/each}
-        {#each transitions as trans}
-            {#each trans.bezier as pts}
+        {#each paths as p}
+            <!-- I do not like this workaround -->
+            {@const iterTransition = transitionsNew.get(p)?.bezier}
+            {#each iterTransition as pts}
                 <circle cx={pts.x} cy={pts.y} r={4} />
             {/each}
         {/each}
-
     </svg>
 </div>
 
