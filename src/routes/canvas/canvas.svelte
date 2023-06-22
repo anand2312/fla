@@ -80,8 +80,6 @@
 
             /* case "transition":
 
-                
-
                     The idea here is that:
 
                     done: 1) The state can have several "attachment points" where transition 
@@ -102,75 +100,125 @@
                     4) Implementing tools to edit transitions
 
                     5) Couple it with an input field for the transition
-                    
-                
 
                 break;
             */
             
             
-            /* Removing (for now, only) states clicked on from the board */
+            /* Removing (for now, only) states clicked on and connected transitions from the board */
             case "erase":
-                if ((event.target as HTMLElement).tagName !== "circle") {
-                    return;
-                }
 
-                // For erasing transitions on deleting states, the transition name has to be removed from the
-                // path array using linear search, and connected states' connected transitions are to be updated,
-                // again using linear search, which is making me uncomfortable
+                if ((event.target as HTMLElement).tagName === "circle") {
+                    // For erasing transitions on deleting states, the transition name has to be removed from the
+                    // path array using linear search, and connected states' connected transitions are to be updated,
+                    // again using linear search, which is making me uncomfortable
 
-                let idx: number = Number((event.target as SVGCircleElement).classList[2]);
-                
-                let stateTransitions: Array<ConnectedTransition> = states.get(circles[idx])!.connTransitions;
-                
-                for (let i = 0; i < stateTransitions.length; i++) {
+                    let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+                    
+                    let stateTransitions: Array<ConnectedTransition> = states.get(circles[idx])!.connTransitions;
+                    
+                    for (let i = 0; i < stateTransitions.length; i++) {
 
-                    if (i > 0 && stateTransitions[i].name === stateTransitions[i-1].name) {
-                        continue;
-                    }
+                        if (i > 0 && stateTransitions[i].name === stateTransitions[i-1].name) {
+                            continue;
+                        }
 
-                    // Removing records of transition to be deleted from connected state other than the one being deleted
-                    let trx: Transition = transitions.get(stateTransitions[i].name)!;
-                    if (stateTransitions[i].from) {
-                        let connTrx: Array<ConnectedTransition> = states.get(trx.state.to)!.connTransitions;
-                        for (let j = 0; j < connTrx.length; j++) {
-                            if (connTrx[j].name === stateTransitions[i].name) {
-                                connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
-                                j--;
+                        // Removing records of transition to be deleted from connected state other than the one being deleted
+                        let trx: Transition = transitions.get(stateTransitions[i].name)!;
+                        if (stateTransitions[i].from) {
+                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.to)!.connTransitions;
+                            for (let j = 0; j < connTrx.length; j++) {
+                                if (connTrx[j].name === stateTransitions[i].name) {
+                                    connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
+                                    j--;
+                                }
+                            }
+                            states.set(trx.state.to, {
+                                coords: states.get(trx.state.to)!.coords,
+                                connTransitions: connTrx
+                            });
+                        } else {
+                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.from)!.connTransitions;
+                            for (let j = 0; j < connTrx.length; j++) {
+                                if (connTrx[j].name === stateTransitions[i].name) {
+                                    connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
+                                    j--;
+                                }
+                            }
+                            states.set(trx.state.from, {
+                                coords: states.get(trx.state.from)!.coords,
+                                connTransitions: connTrx
+                            });
+                        }
+
+                        // removing transitions from the path array and the hash map
+                        transitions.delete(stateTransitions[i].name);
+
+                        for (let j = 0; j < paths.length; j++) {
+                            if (paths[j] === stateTransitions[i].name) {
+                                paths = paths.slice(0, j).concat(paths.slice(j+1, paths.length));
+                                break;
                             }
                         }
-                        states.set(trx.state.to, {
-                            coords: states.get(trx.state.to)!.coords,
-                            connTransitions: connTrx
-                        });
-                    } else {
-                        let connTrx: Array<ConnectedTransition> = states.get(trx.state.from)!.connTransitions;
-                        for (let j = 0; j < connTrx.length; j++) {
-                            if (connTrx[j].name === stateTransitions[i].name) {
-                                connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
-                                j--;
-                            }
-                        }
-                        states.set(trx.state.from, {
-                            coords: states.get(trx.state.from)!.coords,
-                            connTransitions: connTrx
-                        });
                     }
 
-                    // removing transitions from the path array and the hash map
-                    transitions.delete(stateTransitions[i].name);
+                    // Finally deleting the state clicked on                
+                    states.delete(circles[idx]);
+                    circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
-                    for (let j = 0; j < paths.length; j++) {
-                        if (paths[j] === stateTransitions[i].name) {
-                            paths = paths.slice(0, j).concat(paths.slice(j+1, paths.length));
+                } else if ((event.target as HTMLElement).tagName === "path") {
+                    
+                    // remove associated state entries as connected states
+                    let trxName: String = (event.target as SVGPathElement).id;
+                    let trx: Connection<String> = transitions.get(trxName)!.state;
+
+                    let connectedStateTrx: Array<ConnectedTransition> = 
+                        states.get(trx.to)!.connTransitions;
+
+                    for (let i = 0; i < connectedStateTrx.length; i++) {
+                        if (connectedStateTrx[i].name === trxName) {
+                            connectedStateTrx = connectedStateTrx.slice(0, i).concat(
+                                connectedStateTrx.slice(i+1, connectedStateTrx.length)
+                            );
+                            i--;
+                        }
+                    }
+                    
+                    states.set(trx.to, {
+                        coords: states.get(trx.to)!.coords,
+                        connTransitions: connectedStateTrx
+                    });
+
+                    if (trx.to !== trx.from) {
+
+                        connectedStateTrx = states.get(trx.from)!.connTransitions;
+
+                        for (let i = 0; i < connectedStateTrx.length; i++) {
+                            if (connectedStateTrx[i].name === trxName) {
+                                connectedStateTrx = connectedStateTrx.slice(0, i).concat(
+                                    connectedStateTrx.slice(i+1, connectedStateTrx.length)
+                                );
+                                i--;
+                            }
+                        }
+                        
+                        states.set(trx.from, {
+                            coords: states.get(trx.from)!.coords,
+                            connTransitions: connectedStateTrx
+                        });
+
+                    }
+
+                    // Now removing the transition from paths array and the hash map
+                    transitions.delete(trxName);
+
+                    for (let i = 0; i < paths.length; i++) {
+                        if (paths[i] === trxName) {
+                            paths = paths.slice(0, i).concat(paths.slice(i+1, paths.length));
                             break;
                         }
                     }
                 }
-
-                // Finally deleting the state clicked on                
-                states.delete(circles[idx]);
-                circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 break;
         }
@@ -234,15 +282,15 @@
 
                 for (let i = 0; i < connected.length; i++) {
                     if (connected[i].from) {
-                        transitions.get(connected[i].name)!.bezier[0].x = 
-                            mouseX + clickX + attachmentCoords[transitions.get(connected[i].name)!.attPt.from].x;
-                        transitions.get(connected[i].name)!.bezier[0].y = 
-                            mouseY + clickY + attachmentCoords[transitions.get(connected[i].name)!.attPt.from].y;
+                        transitions.get(connected[i].name)!.bezier[0].x = mouseX + clickX +
+                            attachmentCoords[transitions.get(connected[i].name)!.attPt.from].x;
+                        transitions.get(connected[i].name)!.bezier[0].y = mouseY + clickY +
+                            attachmentCoords[transitions.get(connected[i].name)!.attPt.from].y;
                     } else {
-                        transitions.get(connected[i].name)!.bezier[3].x = 
-                            mouseX + clickX + attachmentCoords[transitions.get(connected[i].name)!.attPt.to].x;
-                        transitions.get(connected[i].name)!.bezier[3].y = 
-                            mouseY + clickY + attachmentCoords[transitions.get(connected[i].name)!.attPt.to].y;
+                        transitions.get(connected[i].name)!.bezier[3].x = mouseX + clickX +
+                            attachmentCoords[transitions.get(connected[i].name)!.attPt.to].x;
+                        transitions.get(connected[i].name)!.bezier[3].y = mouseY + clickY +
+                            attachmentCoords[transitions.get(connected[i].name)!.attPt.to].y;
                     }
                 }
 
@@ -356,7 +404,10 @@
 
                 attached = Number(attID.slice(3, attID.length));
                 tempTransition = [
-                    {x: Number((event.target as SVGCircleElement).cx.baseVal.value), y: Number((event.target as SVGCircleElement).cy.baseVal.value)},
+                    {
+                        x: Number((event.target as SVGCircleElement).cx.baseVal.value),
+                        y: Number((event.target as SVGCircleElement).cy.baseVal.value)
+                    },
                     {x: mouseX, y: mouseY}
                 ];
 
@@ -394,7 +445,8 @@
                             {x: tempTransition[0].x, y: tempTransition[0].y},
                             {x: 150, y: 150},
                             {x: 150, y: 200},
-                            {x: Number((event.target as SVGCircleElement).cx.baseVal.value), y: Number((event.target as SVGCircleElement).cy.baseVal.value)}
+                            {x: Number((event.target as SVGCircleElement).cx.baseVal.value),
+                             y: Number((event.target as SVGCircleElement).cy.baseVal.value)}
                         ],
                         state: {from: attachedCircle, to: currCircle},
                         attPt: {from: attached, to: Number(attachIdx.slice(3, attachIdx.length))}
