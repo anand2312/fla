@@ -125,7 +125,7 @@
                 
                 for (let i = 0; i < stateTransitions.length; i++) {
 
-                    if (i > 1 && stateTransitions[i].name === stateTransitions[i-1].name) {
+                    if (i > 0 && stateTransitions[i].name === stateTransitions[i-1].name) {
                         continue;
                     }
 
@@ -166,17 +166,11 @@
                             break;
                         }
                     }
-
-                    console.log("deleted: "+stateTransitions[i].name);
-                    console.log(transitions);
                 }
 
                 // Finally deleting the state clicked on                
                 states.delete(circles[idx]);
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
-
-                console.log(states);
-                console.log(transitions);
 
                 break;
         }
@@ -254,8 +248,6 @@
 
                 transitions = transitions;
 
-                
-
                 states.set(currStateName, {
                     coords: {
                         x: mouseX + clickX,
@@ -308,6 +300,10 @@
                 
                 // Here we add a new state
                 if ((event.target as HTMLElement).tagName !== "circle") {
+
+                    if ((event.target as HTMLElement).classList.contains("transition")) {
+                        return;
+                    }
 
                     // Position of the mouse relative to the board
                     const circle: Coordinates = {
@@ -393,7 +389,7 @@
                         return;
                     }
                     
-                    const newTransition : Transition = {
+                    const newTransition: Transition = {
                         bezier: [
                             {x: tempTransition[0].x, y: tempTransition[0].y},
                             {x: 150, y: 150},
@@ -433,8 +429,6 @@
 
                     transitionMax++;
 
-                    console.log(states);
-
                 }
                 attachedCircle = "";
                 attached = -1;
@@ -460,7 +454,6 @@
     </div>
     <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={unsetMovement} 
                         on:click={handleClick}>
-
         {#if tempTransition.length > 0}
             <path D={"M "+tempTransition[0].x+","+tempTransition[0].y+" L "+tempTransition[1].x+","+tempTransition[1].y} />
         {/if}
