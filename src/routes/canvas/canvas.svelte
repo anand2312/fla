@@ -21,14 +21,6 @@
         from: number
     };
 
-    // intace ConnectedTransitionNew {
-    //     name: String,
-    //     from: number
-    // };erface ConnectedTransitionNew {
-    //     name: String,
-    //     from: number
-    // };
-
     interface StateProperties {
         coords: Coordinates,
         connTransitions: Array<ConnectedTransition>
@@ -45,14 +37,11 @@
     const shortcutMap = new Map<String, String>();
     
     let transitionName: String = "";
-    // let transitions: Array<Transition> = [];
     
     // Temporary name, renaming later
     let paths: Array<String> = [];
     // Path name => Transition details (bezier coords, to and from state/attachment pt)
-    let transitionsNew = new Map<String, Transition>();
-
-    let iterTransition: Array<Coordinates>;
+    let transitions = new Map<String, Transition>();
 
     // Gives new state number
     let stateMax: number = 0;
@@ -81,8 +70,6 @@
 
     // State Name => State Properties (coorinates and connected transitions)
     let states = new Map<String, StateProperties>();
-
-    let iterState: StateProperties;
     
     // Radius of each state in pixels
     let radius: number = 50;
@@ -133,10 +120,58 @@
                 // again using linear search, which is making me uncomfortable
 
                 let idx: number = Number((event.target as SVGCircleElement).classList[2]);
+                
+                let stateTransitions: Array<ConnectedTransition> = states.get(circles[idx])!.connTransitions;
+                
+                for (let i = 0; i < stateTransitions.length; i++) {
+
+                    // Removing records of transition to be deleted from connected state other than the one being deleted
+                    let trx: Transition = transitions.get(stateTransitions[i].name)!;
+                    if (stateTransitions[i].from) {
+                        let connTrx: Array<ConnectedTransition> = states.get(trx.state.to)!.connTransitions;
+                        for (let j = 0; j < connTrx.length; j++) {
+                            if (connTrx[j].name === stateTransitions[i].name) {
+                                connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
+                                j--;
+                            }
+                        }
+                        states.set(trx.state.to, {
+                            coords: states.get(trx.state.to)!.coords,
+                            connTransitions: connTrx
+                        });
+                    } else {
+                        let connTrx: Array<ConnectedTransition> = states.get(trx.state.from)!.connTransitions;
+                        for (let j = 0; j < connTrx.length; j++) {
+                            if (connTrx[j].name === stateTransitions[i].name) {
+                                connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
+                                j--;
+                            }
+                        }
+                        states.set(trx.state.from, {
+                            coords: states.get(trx.state.from)!.coords,
+                            connTransitions: connTrx
+                        });
+                    }
+
+                    // removing transitions from the path array and the hash map
+
+                    transitions.delete(stateTransitions[i].name);
+
+                    for (let j = 0; j < paths.length; j++) {
+                        if (paths[j] === stateTransitions[i].name) {
+                            paths = paths.slice(0, j).concat(paths.slice(j+1, paths.length));
+                            break;
+                        }
+                    }
+                }
+
+                // Finally deleting the state clicked on                
                 states.delete(circles[idx]);
                 circles = circles.slice(0, idx).concat(circles.slice(idx+1, circles.length));
 
                 console.log(states);
+                console.log(transitions);
+
 
                 break;
         }
@@ -200,19 +235,19 @@
 
                 for (let i = 0; i < connected.length; i++) {
                     if (connected[i].from) {
-                        transitionsNew.get(connected[i].name)!.bezier[0].x = 
-                            mouseX + clickX + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.from].x;
-                        transitionsNew.get(connected[i].name)!.bezier[0].y = 
-                            mouseY + clickY + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.from].y;
+                        transitions.get(connected[i].name)!.bezier[0].x = 
+                            mouseX + clickX + attachmentCoords[transitions.get(connected[i].name)!.attPt.from].x;
+                        transitions.get(connected[i].name)!.bezier[0].y = 
+                            mouseY + clickY + attachmentCoords[transitions.get(connected[i].name)!.attPt.from].y;
                     } else {
-                        transitionsNew.get(connected[i].name)!.bezier[3].x = 
-                            mouseX + clickX + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.to].x;
-                        transitionsNew.get(connected[i].name)!.bezier[3].y = 
-                            mouseY + clickY + attachmentCoords[transitionsNew.get(connected[i].name)!.attPt.to].y;
+                        transitions.get(connected[i].name)!.bezier[3].x = 
+                            mouseX + clickX + attachmentCoords[transitions.get(connected[i].name)!.attPt.to].x;
+                        transitions.get(connected[i].name)!.bezier[3].y = 
+                            mouseY + clickY + attachmentCoords[transitions.get(connected[i].name)!.attPt.to].y;
                     }
                 }
 
-                transitionsNew = transitionsNew;
+                transitions = transitions;
 
                 
 
@@ -367,7 +402,7 @@
                     let newTransitionName = "t" + transitionMax;
                     
                     paths = paths.concat(newTransitionName);
-                    transitionsNew.set(newTransitionName, newTransition);
+                    transitions.set(newTransitionName, newTransition);
 
                     let prevState: StateProperties = states.get(attachedCircle)!;
                     prevState.connTransitions.push({
@@ -426,7 +461,7 @@
         {/if}
 
         {#each circles as circ, index}
-            {@const iterState = states.get(circ).coords}
+            {@const iterState = states.get(circ)?.coords}
             <circle cx={iterState.x} cy={iterState.y} r={radius} />
             <text text-anchor="middle" x={iterState.x} y={iterState.y}>{circ}</text>
             <circle id={"bound-"+index} class={"bounding "+circ+" "+index} cx={iterState.x} cy={iterState.y} r={radius+ptRadius} />
@@ -439,12 +474,12 @@
         {/each}
 
         {#each paths as p, index}
-            <path D={"M "+transitionsNew.get(p).bezier[0].x+","+transitionsNew.get(p).bezier[0].y + " C "+transitionsNew.get(p).bezier[1].x+","+transitionsNew.get(p).bezier[1].y+" "+transitionsNew.get(p).bezier[2].x+","+transitionsNew.get(p).bezier[2].y+" "+transitionsNew.get(p).bezier[3].x+","+transitionsNew.get(p).bezier[3].y}
+            <path D={"M "+transitions.get(p).bezier[0].x+","+transitions.get(p).bezier[0].y + " C "+transitions.get(p).bezier[1].x+","+transitions.get(p).bezier[1].y+" "+transitions.get(p).bezier[2].x+","+transitions.get(p).bezier[2].y+" "+transitions.get(p).bezier[3].x+","+transitions.get(p).bezier[3].y}
                   id={"t"+index} class="transition"/>
         {/each}
         {#each paths as p}
             <!-- I do not like this workaround -->
-            {@const iterTransition = transitionsNew.get(p)?.bezier}
+            {@const iterTransition = transitions.get(p)?.bezier}
             {#each iterTransition as pts}
                 <circle cx={pts.x} cy={pts.y} r={4} />
             {/each}
