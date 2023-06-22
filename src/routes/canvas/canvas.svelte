@@ -125,6 +125,10 @@
                 
                 for (let i = 0; i < stateTransitions.length; i++) {
 
+                    if (i > 1 && stateTransitions[i].name === stateTransitions[i-1].name) {
+                        continue;
+                    }
+
                     // Removing records of transition to be deleted from connected state other than the one being deleted
                     let trx: Transition = transitions.get(stateTransitions[i].name)!;
                     if (stateTransitions[i].from) {
@@ -154,7 +158,6 @@
                     }
 
                     // removing transitions from the path array and the hash map
-
                     transitions.delete(stateTransitions[i].name);
 
                     for (let j = 0; j < paths.length; j++) {
@@ -163,6 +166,9 @@
                             break;
                         }
                     }
+
+                    console.log("deleted: "+stateTransitions[i].name);
+                    console.log(transitions);
                 }
 
                 // Finally deleting the state clicked on                
@@ -171,7 +177,6 @@
 
                 console.log(states);
                 console.log(transitions);
-
 
                 break;
         }
