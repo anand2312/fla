@@ -10,11 +10,17 @@
         to: T
     };
 
+    interface ConnectionProperties {
+        name: String,
+        angle: number
+    };
+
     interface Transition {
         bezier: Array<Coordinates>,
-        state: Connection<String>,
+        state: Connection<ConnectionProperties>,
         attPt: Connection<number>
     };
+
 
     interface ConnectedTransition {
         name: String,
@@ -126,27 +132,27 @@
                         // Removing records of transition to be deleted from connected state other than the one being deleted
                         let trx: Transition = transitions.get(stateTransitions[i].name)!;
                         if (stateTransitions[i].from) {
-                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.to)!.connTransitions;
+                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.to.name)!.connTransitions;
                             for (let j = 0; j < connTrx.length; j++) {
                                 if (connTrx[j].name === stateTransitions[i].name) {
                                     connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
                                     j--;
                                 }
                             }
-                            states.set(trx.state.to, {
-                                coords: states.get(trx.state.to)!.coords,
+                            states.set(trx.state.to.name, {
+                                coords: states.get(trx.state.to.name)!.coords,
                                 connTransitions: connTrx
                             });
                         } else {
-                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.from)!.connTransitions;
+                            let connTrx: Array<ConnectedTransition> = states.get(trx.state.from.name)!.connTransitions;
                             for (let j = 0; j < connTrx.length; j++) {
                                 if (connTrx[j].name === stateTransitions[i].name) {
                                     connTrx = connTrx.slice(0, j).concat(connTrx.slice(j+1, connTrx.length));
                                     j--;
                                 }
                             }
-                            states.set(trx.state.from, {
-                                coords: states.get(trx.state.from)!.coords,
+                            states.set(trx.state.from.name, {
+                                coords: states.get(trx.state.from.name)!.coords,
                                 connTransitions: connTrx
                             });
                         }
@@ -170,10 +176,10 @@
                     
                     // remove associated state entries as connected states
                     let trxName: String = (event.target as SVGPathElement).id;
-                    let trx: Connection<String> = transitions.get(trxName)!.state;
+                    let trx: Connection<ConnectionProperties> = transitions.get(trxName)!.state;
 
                     let connectedStateTrx: Array<ConnectedTransition> = 
-                        states.get(trx.to)!.connTransitions;
+                        states.get(trx.to.name)!.connTransitions;
 
                     for (let i = 0; i < connectedStateTrx.length; i++) {
                         if (connectedStateTrx[i].name === trxName) {
@@ -184,14 +190,14 @@
                         }
                     }
                     
-                    states.set(trx.to, {
-                        coords: states.get(trx.to)!.coords,
+                    states.set(trx.to.name, {
+                        coords: states.get(trx.to.name)!.coords,
                         connTransitions: connectedStateTrx
                     });
 
-                    if (trx.to !== trx.from) {
+                    if (trx.to.name !== trx.from.name) {
 
-                        connectedStateTrx = states.get(trx.from)!.connTransitions;
+                        connectedStateTrx = states.get(trx.from.name)!.connTransitions;
 
                         for (let i = 0; i < connectedStateTrx.length; i++) {
                             if (connectedStateTrx[i].name === trxName) {
@@ -202,8 +208,8 @@
                             }
                         }
                         
-                        states.set(trx.from, {
-                            coords: states.get(trx.from)!.coords,
+                        states.set(trx.from.name, {
+                            coords: states.get(trx.from.name)!.coords,
                             connTransitions: connectedStateTrx
                         });
 
@@ -278,19 +284,91 @@
                     (event.target as SVGCircleElement).parentElement!.getBoundingClientRect().top;                
 
                 // Making transitions move along with states
-                let connected = states.get(currStateName)!.connTransitions;
+                let stateCoords: Coordinates = states.get(currStateName)!.coords;
+                let connected: Array<ConnectedTransition> = states.get(currStateName)!.connTransitions;
 
                 for (let i = 0; i < connected.length; i++) {
                     if (connected[i].from) {
+
+                        // Coords being set for attachment points
                         transitions.get(connected[i].name)!.bezier[0].x = mouseX + clickX +
                             attachmentCoords[transitions.get(connected[i].name)!.attPt.from].x;
                         transitions.get(connected[i].name)!.bezier[0].y = mouseY + clickY +
                             attachmentCoords[transitions.get(connected[i].name)!.attPt.from].y;
+
+                        // Coords being set for handles
+                        let secondCircleCoords: Coordinates = states.get(
+                            transitions.get(connected[i].name)!.state.to.name
+                        )!.coords;
+
+                        let dist: number;
+
+                        if (transitions.get(connected[i].name)!.state.from.name !== 
+                            transitions.get(connected[i].name)!.state.to.name ) {
+                            dist = Math.sqrt(
+                                Math.pow(stateCoords.x - secondCircleCoords.x, 2) +
+                                Math.pow(stateCoords.y - secondCircleCoords.y, 2)
+                            ) / 7;
+                        } else {
+                            dist = 100;
+                        }
+
+                        // Adjusting moving state's handle
+                        let theta1: number = transitions.get(connected[i].name)!.state.from.angle;
+                        transitions.get(connected[i].name)!.bezier[1].x = mouseX + clickX + 
+                            (radius + dist) * Math.cos(theta1);
+                        transitions.get(connected[i].name)!.bezier[1].y = mouseY + clickY + 
+                            (radius + dist) * Math.sin(theta1) * -1;
+
+                        // Adjusting connected state's handle
+                        let theta2: number = transitions.get(connected[i].name)!.state.to.angle;
+                        transitions.get(connected[i].name)!.bezier[2].x = secondCircleCoords.x +
+                            (radius + dist) * Math.cos(theta2);
+                        transitions.get(connected[i].name)!.bezier[2].y = secondCircleCoords.y +
+                            (radius + dist) * Math.sin(theta2) * -1;
+
                     } else {
+
+                        // Coords being set for attachment points
                         transitions.get(connected[i].name)!.bezier[3].x = mouseX + clickX +
                             attachmentCoords[transitions.get(connected[i].name)!.attPt.to].x;
                         transitions.get(connected[i].name)!.bezier[3].y = mouseY + clickY +
                             attachmentCoords[transitions.get(connected[i].name)!.attPt.to].y;
+
+                        // Coords being set for handles
+                        let secondCircleCoords: Coordinates = states.get(
+                            transitions.get(connected[i].name)!.state.from.name
+                        )!.coords;
+
+                        let dist: number = Math.sqrt(
+                            Math.pow(stateCoords.x - secondCircleCoords.x, 2) +
+                            Math.pow(stateCoords.y - secondCircleCoords.y, 2)
+                        ) / 7;
+
+                        if (transitions.get(connected[i].name)!.state.from.name !== 
+                            transitions.get(connected[i].name)!.state.to.name ) {
+                            dist = Math.sqrt(
+                                Math.pow(stateCoords.x - secondCircleCoords.x, 2) +
+                                Math.pow(stateCoords.y - secondCircleCoords.y, 2)
+                            ) / 7;
+                        } else {
+                            dist = 100;
+                        }
+
+                        // Adjusting moving state's handle
+                        let theta1: number = transitions.get(connected[i].name)!.state.to.angle;
+                        transitions.get(connected[i].name)!.bezier[2].x = mouseX + clickX + 
+                            (radius + dist) * Math.cos(theta1);
+                        transitions.get(connected[i].name)!.bezier[2].y = mouseY + clickY + 
+                            (radius + dist) * Math.sin(theta1) * -1;
+
+                        // Adjusting connected state's handle
+                        let theta2: number = transitions.get(connected[i].name)!.state.from.angle;
+                        transitions.get(connected[i].name)!.bezier[1].x = secondCircleCoords.x +
+                            (radius + dist) * Math.cos(theta2);
+                        transitions.get(connected[i].name)!.bezier[1].y = secondCircleCoords.y +
+                            (radius + dist) * Math.sin(theta2) * -1;
+
                     }
                 }
 
@@ -463,9 +541,6 @@
                         theta2 += Math.PI;
                     }
 
-                    console.log("theta1: "+theta1);
-                    console.log("theta2: "+theta2);
-
                     // r is just circle radius, defined earlier
 
                     let handleLen: number;
@@ -473,7 +548,7 @@
                         handleLen = Math.sqrt(
                             Math.pow(states.get(attachedCircle)!.coords.x - states.get(currCircle)!.coords.x, 2) +
                             Math.pow(states.get(attachedCircle)!.coords.x - states.get(currCircle)!.coords.x, 2)
-                        ) / 5;
+                        ) / 7;
                     } else {
                         handleLen = 100;
                     }
@@ -504,7 +579,16 @@
                             {x: Number((event.target as SVGCircleElement).cx.baseVal.value),
                              y: Number((event.target as SVGCircleElement).cy.baseVal.value)}
                         ],
-                        state: {from: attachedCircle, to: currCircle},
+                        state: {
+                            from: {
+                                name: attachedCircle,
+                                angle: theta1
+                            },
+                            to: {
+                                name: currCircle,
+                                angle: theta2
+                            }
+                        },
                         attPt: {from: attached, to: Number(attachIdx.slice(3, attachIdx.length))}
                     };
 
