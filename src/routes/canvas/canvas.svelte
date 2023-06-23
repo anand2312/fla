@@ -225,7 +225,7 @@
     
     }
 
-    let points = 6;
+    let points = 8;
     let attachmentCoords: Array<Coordinates> = [];
     
     function calculateRelativeCoords() {
@@ -235,8 +235,8 @@
 
             let theta: number = i * 2 * Math.PI / points;
             const coords : Coordinates = {
-                x: radius * Math.cos(theta - Math.PI/2),
-                y: radius * Math.sin(theta - Math.PI/2)
+                x: radius * Math.cos(theta),
+                y: radius * Math.sin(theta)
             }
             
             attachmentCoords = attachmentCoords.concat(coords);
@@ -439,12 +439,68 @@
 
                         return;
                     }
+
+                    // all handle points must go radially outwards, so the polar coords system is appropriate
+
+                    // angle of first cirle's attachment point
+                    let theta1: number = Math.atan((states.get(attachedCircle)!.coords.y - tempTransition[0].y) /
+                                                   (tempTransition[0].x - states.get(attachedCircle)!.coords.x));
+
+                    if (tempTransition[0].x - states.get(attachedCircle)!.coords.x < 0) {
+                        theta1 += Math.PI;
+                    } 
+
+                    console.log(tempTransition[0].x - states.get(attachedCircle)!.coords.x === 0);
+                    console.log(states.get(attachedCircle)!.coords.y - tempTransition[0].y < 0);
+
+                    // angle of second cirle's attachment point
+                    let theta2: number = Math.atan(
+                        (states.get(currCircle)!.coords.y - Number((event.target as SVGCircleElement).cy.baseVal.value)) / 
+                        (Number((event.target as SVGCircleElement).cx.baseVal.value) - states.get(currCircle)!.coords.x)
+                    );
+
+                    if (Number((event.target as SVGCircleElement).cx.baseVal.value) - states.get(currCircle)!.coords.x < 0) {
+                        theta2 += Math.PI;
+                    }
+
+                    console.log("theta1: "+theta1);
+                    console.log("theta2: "+theta2);
+
+                    // r is just circle radius, defined earlier
+
+                    let handleLen: number;
+                    if (states.get(attachedCircle)! !== states.get(currCircle)!) {
+                        handleLen = Math.sqrt(
+                            Math.pow(states.get(attachedCircle)!.coords.x - states.get(currCircle)!.coords.x, 2) +
+                            Math.pow(states.get(attachedCircle)!.coords.x - states.get(currCircle)!.coords.x, 2)
+                        ) / 5;
+                    } else {
+                        handleLen = 100;
+                    }
+
+                    let handles: Array<Coordinates> = [
+                        //circle 1:
+                        {
+                            x: (radius + handleLen) * Math.cos(theta1) + states.get(attachedCircle)!.coords.x,
+                            y: (radius + handleLen) * Math.sin(theta1) * -1 + states.get(attachedCircle)!.coords.y
+                        },
+                        //circle 2:
+                        {
+                            x: (radius + handleLen) * Math.cos(theta2) + states.get(currCircle)!.coords.x,
+                            y: (radius + handleLen) * Math.sin(theta2) * -1 + states.get(currCircle)!.coords.y
+                        }
+                    ];
+                    
+                    for (let i = 0; i < handles.length; i++) {
+                        handles[i].x = handles[i].x >= 0 ? handles[i].x : 0;
+                        handles[i].y = handles[i].y >= 0 ? handles[i].y : 0;
+                    }
                     
                     const newTransition: Transition = {
                         bezier: [
                             {x: tempTransition[0].x, y: tempTransition[0].y},
-                            {x: 150, y: 150},
-                            {x: 150, y: 200},
+                            handles[0],
+                            handles[1],
                             {x: Number((event.target as SVGCircleElement).cx.baseVal.value),
                              y: Number((event.target as SVGCircleElement).cy.baseVal.value)}
                         ],
@@ -533,7 +589,7 @@
             {#each iterTransition as pts}
                 <circle cx={pts.x} cy={pts.y} r={4} />
             {/each}
-        {/each}
+        {/each} 
     </svg>
 </div>
 
