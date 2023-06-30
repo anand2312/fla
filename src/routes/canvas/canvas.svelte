@@ -258,7 +258,7 @@
     // temporary variable                               // Variables for transition
     let ptRadius: number = 7;
     
-    // if pointer is attached to attachment point
+    // if mouse pointer is attached to attachment point
     let attached: number = -1;
     
     // line to indicate new transition being dragged out
@@ -528,9 +528,6 @@
                         theta1 += Math.PI;
                     } 
 
-                    console.log(tempTransition[0].x - states.get(attachedCircle)!.coords.x === 0);
-                    console.log(states.get(attachedCircle)!.coords.y - tempTransition[0].y < 0);
-
                     // angle of second cirle's attachment point
                     let theta2: number = Math.atan(
                         (states.get(currCircle)!.coords.y - Number((event.target as SVGCircleElement).cy.baseVal.value)) / 
@@ -542,7 +539,6 @@
                     }
 
                     // r is just circle radius, defined earlier
-
                     let handleLen: number;
                     if (states.get(attachedCircle)! !== states.get(currCircle)!) {
                         handleLen = Math.sqrt(
@@ -620,7 +616,6 @@
                     });
 
                     transitionMax++;
-
                 }
                 attachedCircle = "";
                 attached = -1;
@@ -628,6 +623,49 @@
 
                 break;
         }
+    }
+
+    let arrowSize: number = 15; // pixels
+
+    function getArrowCoords(theta: number): Array<Coordinates> {
+        // origin is on the point of the arrow
+        /*
+            y  0
+              / 
+             /
+            <--   x
+             \
+              \ assume this is the arrow, 45 deg internal angles
+               1
+            at arrow point, set origin and rotate through theta
+            x = y, so diagonal length = sqrt(2) * arrowSize
+            rotate as radius, convert to coordinate system
+
+        */
+
+        if (theta % (2*Math.PI) === 0) {
+            return [
+                {x: arrowSize, y: -arrowSize},
+                {x: arrowSize, y:  arrowSize}
+            ];
+        }
+        
+        let lineLen: number = Math.SQRT2 * arrowSize;
+
+        let retVal: Array<Coordinates> = [
+            {
+                x: lineLen * Math.cos(theta + Math.PI/4),
+                y: -lineLen * Math.sin(theta + Math.PI/4)
+            },
+            {
+                x: lineLen * Math.cos(theta - Math.PI/4),
+                y: -lineLen * Math.sin(theta - Math.PI/4)
+
+            }
+        ];
+
+        return retVal;
+
     }
     
 </script>
@@ -646,6 +684,7 @@
     </div>
     <svg class="canvas" on:mousedown={setMovement} on:mousemove={handleMovement} on:mouseup={unsetMovement} 
                         on:click={handleClick}>
+
         {#if tempTransition.length > 0}
             <path D={"M "+tempTransition[0].x+","+tempTransition[0].y+" L "+tempTransition[1].x+","+tempTransition[1].y} />
         {/if}
@@ -664,16 +703,29 @@
         {/each}
 
         {#each paths as p, index}
-            <path D={"M "+transitions.get(p).bezier[0].x+","+transitions.get(p).bezier[0].y + " C "+transitions.get(p).bezier[1].x+","+transitions.get(p).bezier[1].y+" "+transitions.get(p).bezier[2].x+","+transitions.get(p).bezier[2].y+" "+transitions.get(p).bezier[3].x+","+transitions.get(p).bezier[3].y}
-                  id={"t"+index} class="transition"/>
+            // Transition
+            {@const pts = transitions.get(p).bezier}
+            <path D={"M "+pts[0].x+","+pts[0].y + " C "+pts[1].x+","+pts[1].y+" "+pts[2].x+","+pts[2].y+" "+pts[3].x+","+pts[3].y}
+                  id={"t"+index} class="transition" />
+            // Arrow
+            {@const arrowXY = getArrowCoords(transitions.get(p)?.state.to.angle)}
+            <path D="M {pts[3].x + arrowXY[0].x},{pts[3].y + arrowXY[0].y} {pts[3].x},{pts[3].y} {pts[3].x + arrowXY[1].x},{pts[3].y + arrowXY[1].y}" />
         {/each}
+
         {#each paths as p}
             <!-- I do not like this workaround -->
             {@const iterTransition = transitions.get(p)?.bezier}
             {#each iterTransition as pts}
                 <circle cx={pts.x} cy={pts.y} r={4} />
             {/each}
-        {/each} 
+        {/each}
+
+    </svg>
+</div>
+
+<div>
+    <svg>
+        <path D="M 140,140 100,100 140,140 100,180" id="arrow"/>
     </svg>
 </div>
 
@@ -687,6 +739,11 @@
 {/if}
 
 <style>
+
+    #arrow {
+        /* transform: rotateZ(20deg); */
+    }
+
     .board {
         width: 100%;
         background-color:  #274c43;
